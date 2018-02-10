@@ -70,10 +70,10 @@ class Bottleneck_offset(nn.Module):
         self.id=n_s
         self.ST=list(self.ST_struc)[self.id%self.len_ST]
         if self.id<self.depth_3d:
-            self.offset=ConvOffset2D(planes)
             self.conv2 = conv_S(planes,planes, stride=1,padding=(0,1,1))
             self.bn2 = nn.BatchNorm3d(planes)
     
+            self.offset_T=ConvOffset2D(planes)
             self.conv3 = conv_T(planes,planes, stride=1,padding=(1,0,0))
             self.bn3 = nn.BatchNorm3d(planes)
         else:
@@ -91,25 +91,24 @@ class Bottleneck_offset(nn.Module):
         self.stride = stride
 
 
-    def ConvOffset3D_fyq(self,x):
-        deep=x.shape[2]
+    def ConvOffset3D_T_fyq(self,x):
+        W=x.shape[4]
         new_output=torch.Tensor(x.shape)
-        for i in range(deep):
-            temp2D_input=x[:,:,i,:,:]
-            temp2D_output=self.offset(temp2D_input)
-            new_output[:,:,i,:,:]=temp2D_output.data
-        # print (new_output.shape)                 
+        for i in range(W):
+            temp2D_input=x[:,:,:,:,i]
+            temp2D_output=self.offset_T(temp2D_input)
+            new_output[:,:,:,:,i]=temp2D_output.data
         result=new_output.type(torch.cuda.FloatTensor)
         result=Variable(result)
         return result
 
 
     def ST_A(self,x):
-        x = self.ConvOffset3D_fyq(x)
         x = self.conv2(x)
         x = self.bn2(x)
         x = self.relu(x)
 
+        x = self.ConvOffset3D_T_fyq(x)
         x = self.conv3(x)
         x = self.bn3(x)
         x = self.relu(x)
@@ -117,11 +116,11 @@ class Bottleneck_offset(nn.Module):
         return x
 
     def ST_B(self,x):
-        x = self.ConvOffset3D_fyq(x)
         tmp_x = self.conv2(x)
         tmp_x = self.bn2(tmp_x)
         tmp_x = self.relu(tmp_x)
 
+        x = self.ConvOffset3D_T_fyq(x)
         x = self.conv3(x)
         x = self.bn3(x)
         x = self.relu(x)
@@ -129,11 +128,11 @@ class Bottleneck_offset(nn.Module):
         return x+tmp_x
 
     def ST_C(self,x):
-        x = self.ConvOffset3D_fyq(x)
         x = self.conv2(x)
         x = self.bn2(x)
         x = self.relu(x)
 
+        x = self.ConvOffset3D_T_fyq(x)
         tmp_x = self.conv3(x)
         tmp_x = self.bn3(tmp_x)
         tmp_x = self.relu(tmp_x)
@@ -174,13 +173,13 @@ class Bottleneck_offset(nn.Module):
 
         return out
 
-# P3D network
-class P3D_offset(nn.Module):
 
-    def __init__(self, block, layers, modality='RGB',
-        shortcut_type='B', num_classes=101,dropout=0.5,ST_struc=('A','B','C')):
+# P3D network
+class P3D_offset_T(nn.Module):
+
+    def __init__(self, block, layers, modality='RGB',shortcut_type='B', num_classes=101,dropout=0.5,ST_struc=('A','B','C')):
         self.inplanes = 64
-        super(P3D_offset, self).__init__()
+        super(P3D_offset_T, self).__init__()
         # self.conv1 = nn.Conv3d(3, 64, kernel_size=7, stride=(1, 2, 2),
         #                        padding=(3, 3, 3), bias=False)
         self.input_channel = 3 if modality=='RGB' else 2  # 2 is for flow 
@@ -320,28 +319,28 @@ class P3D_offset(nn.Module):
                     param.requires_grad = True
 
     def parameters(self):
-        return filter(lambda p: p.requires_grad, super(P3D_offset, self).parameters())
+        return filter(lambda p: p.requires_grad, super(P3D_offset_T, self).parameters())
 
 
 # 63layers P3D
 def P3D63_offset(**kwargs):
     """Construct a P3D63 modelbased on a ResNet-50-3D model.
     """
-    model = P3D_offset(Bottleneck_offset, [3, 4, 6, 3], **kwargs)
+    model = P3D_offset_T(Bottleneck_offset, [3, 4, 6, 3], **kwargs)
     return model
 
 #131layers P3D
 def P3D131_offset(**kwargs):
     """Construct a P3D131 model based on a ResNet-101-3D model.
     """
-    model = P3D_offset(Bottleneck_offset, [3, 4, 23, 3], **kwargs)
+    model = P3D_offset_T(Bottleneck_offset, [3, 4, 23, 3], **kwargs)
     return model
 
 #199layers P3D
 def P3D199_offset(pretrained=False,modality='RGB',**kwargs):
     """construct a P3D199 model based on a ResNet-152-3D model.
     """
-    model = P3D_offset(Bottleneck_offset, [3, 8, 36, 3], modality=modality,**kwargs)
+    model = P3D_offset_T(Bottleneck_offset, [3, 8, 36, 3], modality=modality,**kwargs)
     if pretrained==True:
         if modality=='RGB':
             pretrained_file='p3d_rgb_199.checkpoint.pth.tar'
@@ -351,8 +350,8 @@ def P3D199_offset(pretrained=False,modality='RGB',**kwargs):
         model.load_state_dict(weights)
     return model
 
-def get_P3D_offset_fyq(trainable=True, freeze_filter=[nn.Conv3d,nn.Conv2d, nn.Linear],modality='RGB',**kwargs):
-    model = P3D_offset(Bottleneck_offset, [3, 8, 36, 3], modality=modality,**kwargs)
+def get_P3D_offset_T_fyq(trainable=True, freeze_filter=[nn.Conv3d,nn.Conv2d, nn.Linear],modality='RGB',**kwargs):
+    model = P3D_offset_T(Bottleneck_offset, [3, 8, 36, 3], modality=modality,**kwargs)
     if not trainable:
         model.freeze(freeze_filter)
     return model
@@ -440,8 +439,10 @@ if __name__ == '__main__':
     # we need the pretrained data: 'p3d_rgb_199.checkpoint.pth.tar'
     # model = P3D199_offset(pretrained=False,num_classes=400)
     # model = model.cuda()
-    model=get_P3D_offset_fyq()
+    
+    model=get_P3D_offset_T_fyq()
     model=model.cuda()
+    print (model)
     data=torch.autograd.Variable(torch.rand(10,3,16,160,160)).cuda()   # if modality=='Flow', please change the 2nd dimension 3==>2
     out=model(data)
     print (out.size(),out)

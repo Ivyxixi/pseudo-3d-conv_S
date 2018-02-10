@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 import numpy as np
-from deform_conv_fyq import th_batch_map_offsets, th_generate_grid
+from deform_conv_fyq import th_batch_map_offsets, th_generate_grid,th_generate_grid_2_fyq
 
 
 class ConvOffset2D(nn.Conv2d):
@@ -53,12 +53,21 @@ class ConvOffset2D(nn.Conv2d):
 
     @staticmethod
     def _get_grid(self, x):
+        '''
         batch_size, input_size= x.size(0), x.size(1)
         dtype, cuda = x.data.type(), x.data.is_cuda
         if self._grid_param == (batch_size, input_size, dtype, cuda):
             return self._grid
         self._grid_param = (batch_size, input_size, dtype, cuda)
         self._grid = th_generate_grid(batch_size, input_size, dtype, cuda)
+        return self._grid
+        '''
+        batch_size, input_size1,input_size2= x.size(0), x.size(1),x.size(2)
+        dtype, cuda = x.data.type(), x.data.is_cuda
+        if self._grid_param == (batch_size, input_size1, dtype, cuda):
+            return self._grid
+        self._grid_param = (batch_size, input_size1, dtype, cuda)
+        self._grid = th_generate_grid_2_fyq(batch_size, input_size1,input_size2, dtype, cuda)
         return self._grid
     
     @staticmethod

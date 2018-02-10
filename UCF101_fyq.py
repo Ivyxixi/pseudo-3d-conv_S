@@ -1,6 +1,5 @@
 import pickle
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 import random
 from skimage import io, color, exposure
@@ -48,7 +47,8 @@ class UCF101:
     def get_train(self):
         train_x_path = []
         train_y = []
-        for index in range(1,4):
+        # for index in range(1,4):
+        for index in range (1,2):
             tmp_path='trainlist0'+str(index)+'.txt'
             train_csv_path = os.path.join(self.csv_dir_path, tmp_path)
             # print (train_csv_path)
@@ -68,7 +68,8 @@ class UCF101:
     def get_test(self):
         test_x_path=[]
         test_y_label=[]
-        for index in range(1,4):
+        # for index in range(1,4):
+        for index in range(1,2):
             temp_path='testlist0'+str(index)+'.txt'
             test_csv_path=os.path.join(self.csv_dir_path,temp_path)
             # print (test_csv_path)
